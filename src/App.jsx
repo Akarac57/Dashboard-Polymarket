@@ -196,10 +196,12 @@ function SearchModal({ onClose, onAdd, watchedIds }) {
     }
     setLoading(true);
     try {
-      const url = `${GAMMA_API}/markets?active=true&closed=false&limit=20&_q=${encodeURIComponent(q)}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      setResults(data || []);
+const url = `${GAMMA_API}/public-search?q=${encodeURIComponent(q)}&limit_per_type=20&events_status=active`;
+const res = await fetch(url);
+const data = await res.json();
+// L'API retourne { events: [...] }, chaque event contient des markets
+const markets = (data.events || []).flatMap(e => e.markets || []);
+setResults(markets);
     } catch {
       setResults([]);
     }
