@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const GAMMA_API = "https://gamma-api.polymarket.com";
+const GAMMA_API = "/api/polymarket";
 
 const categoryColors = {
   Politics: "#f59e0b",
