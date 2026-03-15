@@ -88,7 +88,7 @@ const fallbackColors = ["#1890ff", "#ff4d4f", "#52c41a", "#fa8c16", "#722ed1", "
 const PERIODS = [
   { id: "1h",  label: "1h",  ms: 60 * 60 * 1000 },
   { id: "24h", label: "24h", ms: 24 * 60 * 60 * 1000 },
-  { id: "3d",  label: "3j",  ms: 3 * 24 * 60 * 60 * 1000 },
+  { id: "72h",  label: "72h",  ms: 3 * 24 * 60 * 60 * 1000 },
 ];
 
 // ── Historique des prix ──────────────────────────────────────────
