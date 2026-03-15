@@ -456,6 +456,124 @@ function SearchModal({ onClose, onAddMultiple, watchedIds, activeTab, tabs }) {
   );
 }
 
+// ── SubSectionBar ────────────────────────────────────────────────
+function SubSectionBar({ tabId, sections, activeSubSection, setActiveSubSection, eventsInTab, onAdd, onRemove, onDropEvent, dragId }) {
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [overSection, setOverSection] = useState(null);
+
+  const countForSection = (sectionId) =>
+    eventsInTab.filter(ev => ev._subSection === sectionId).length;
+
+  const countUnsorted = eventsInTab.filter(ev =>
+    !ev._subSection || !sections.find(s => s.id === ev._subSection)
+  ).length;
+
+  const handleAdd = () => {
+    if (newName.trim()) { onAdd(newName.trim()); setNewName(""); }
+    setAdding(false);
+  };
+
+  // Don't show bar on "all" tab, but always show "+" to create first section on any tab
+  if (tabId === "all" && sections.length === 0) return null;
+
+  return (
+    <div
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "0 32px", display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.01)", overflowX: "auto", minHeight: 38 }}
+    >
+      {/* "Tous" sub-tab */}
+      {sections.length > 0 && (
+        <button
+          onClick={() => setActiveSubSection("all")}
+          style={{ background: "none", border: "none", borderBottom: activeSubSection === "all" ? "2px solid rgba(255,255,255,0.4)" : "2px solid transparent", color: activeSubSection === "all" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)", padding: "8px 12px", cursor: "pointer", fontSize: 11, fontWeight: activeSubSection === "all" ? 700 : 400, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", transition: "all 0.15s" }}
+        >
+          Tous
+          <span style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>
+            {eventsInTab.length}
+          </span>
+        </button>
+      )}
+
+      {/* Section tabs */}
+      {sections.map(section => {
+        const isActive = activeSubSection === section.id;
+        const isDropTarget = overSection === section.id && dragId;
+        const count = countForSection(section.id);
+        return (
+          <div
+            key={section.id}
+            onDragOver={(e) => { e.preventDefault(); setOverSection(section.id); }}
+            onDragLeave={() => setOverSection(null)}
+            onDrop={() => { if (dragId) { onDropEvent(dragId, section.id); setOverSection(null); } }}
+            style={{ position: "relative" }}
+          >
+            <button
+              onClick={() => setActiveSubSection(section.id)}
+              style={{ background: isDropTarget ? "rgba(99,102,241,0.1)" : "none", border: "none", borderBottom: isActive ? "2px solid rgba(255,255,255,0.4)" : isDropTarget ? "2px solid rgba(99,102,241,0.5)" : "2px solid transparent", color: isActive ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)", padding: "8px 10px", cursor: "pointer", fontSize: 11, fontWeight: isActive ? 700 : 400, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", transition: "all 0.15s", borderRadius: isDropTarget ? "4px 4px 0 0" : 0 }}
+            >
+              {section.label}
+              {count > 0 && (
+                <span style={{ background: isActive ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)", color: isActive ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>
+                  {count}
+                </span>
+              )}
+              <span
+                onClick={(e) => { e.stopPropagation(); onRemove(section.id); }}
+                style={{ marginLeft: 2, opacity: 0.3, fontSize: 11, cursor: "pointer", lineHeight: 1 }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#ff4d4f"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.3"; e.currentTarget.style.color = ""; }}
+              >×</span>
+            </button>
+          </div>
+        );
+      })}
+
+      {/* "Non classés" section when drag is active or there are unsorted events */}
+      {sections.length > 0 && countUnsorted > 0 && (
+        <button
+          onClick={() => setActiveSubSection("__none__")}
+          style={{ background: "none", border: "none", borderBottom: activeSubSection === "__none__" ? "2px solid rgba(255,255,255,0.4)" : "2px solid transparent", color: activeSubSection === "__none__" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)", padding: "8px 10px", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", fontStyle: "italic", transition: "all 0.15s" }}
+        >
+          Non classés
+          <span style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.2)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>{countUnsorted}</span>
+        </button>
+      )}
+
+      {/* Add section */}
+      {tabId !== "all" && (
+        adding ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 6 }}>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
+              placeholder="Nom de la section..."
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "3px 8px", color: "white", fontSize: 11, outline: "none", width: 150 }}
+            />
+            <button onClick={handleAdd} style={{ background: "rgba(99,102,241,0.3)", border: "none", color: "white", padding: "3px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>OK</button>
+            <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 14, cursor: "pointer" }}>×</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", padding: "8px 10px", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 3, transition: "color 0.15s", whiteSpace: "nowrap" }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; }}
+          >+ Section</button>
+        )
+      )}
+
+      {/* Drag hint when dragging */}
+      {dragId && sections.length > 0 && (
+        <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(99,102,241,0.6)", paddingRight: 8, whiteSpace: "nowrap" }}>
+          ↑ Dépose sur une section
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── App principal ────────────────────────────────────────────────
 export default function PolymarketDashboard() {
   const [watched, setWatched] = useState(() => {
@@ -473,6 +591,15 @@ export default function PolymarketDashboard() {
   });
 
   const [activeTab, setActiveTab] = useState("all");
+  const [activeSubSection, setActiveSubSection] = useState("all"); // "all" = toutes les sous-cats
+
+  // subSections : { [tabId]: [ { id, label, emoji? } ] }
+  const [subSections, setSubSections] = useState(() => {
+    try {
+      const saved = localStorage.getItem("polymarket-subsections");
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
   const [hiddenTabs, setHiddenTabs] = useState(() => {
     try {
       const saved = localStorage.getItem("polymarket-hidden-tabs");
@@ -515,12 +642,47 @@ export default function PolymarketDashboard() {
   };
 
   useEffect(() => {
+    localStorage.setItem("polymarket-subsections", JSON.stringify(subSections));
+  }, [subSections]);
+
+  // Reset sous-section active quand on change d'onglet
+  useEffect(() => { setActiveSubSection("all"); }, [activeTab]);
+
+  const addSubSection = (tabId, label) => {
+    if (!label.trim()) return;
+    const id = `${tabId}__${label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}__${Date.now()}`;
+    setSubSections(prev => ({
+      ...prev,
+      [tabId]: [...(prev[tabId] || []), { id, label: label.trim() }],
+    }));
+  };
+
+  const removeSubSection = (tabId, sectionId) => {
+    // Réassigne les paris de cette sous-section à "none"
+    setWatched(prev => prev.map(ev => ev._subSection === sectionId ? { ...ev, _subSection: null } : ev));
+    setSubSections(prev => ({ ...prev, [tabId]: (prev[tabId] || []).filter(s => s.id !== sectionId) }));
+    if (activeSubSection === sectionId) setActiveSubSection("all");
+  };
+
+  const assignSubSection = (eventId, sectionId) => {
+    setWatched(prev => prev.map(ev => ev.id === eventId ? { ...ev, _subSection: sectionId } : ev));
+  };
+
+  useEffect(() => {
     localStorage.setItem("polymarket-tabs", JSON.stringify(tabs));
   }, [tabs]);
 
-  const visibleEvents = watched.filter((ev) => {
+  const eventsInTab = watched.filter((ev) => {
     if (activeTab === "all") return true;
     return (ev._tab || getEventTab(ev)) === activeTab;
+  });
+
+  const currentSections = subSections[activeTab] || [];
+
+  const visibleEvents = eventsInTab.filter((ev) => {
+    if (activeSubSection === "all") return true;
+    if (activeSubSection === "__none__") return !ev._subSection || !currentSections.find(s => s.id === ev._subSection);
+    return ev._subSection === activeSubSection;
   });
 
   const refreshPrices = useCallback(async () => {
@@ -770,13 +932,27 @@ export default function PolymarketDashboard() {
         })}
       </div>
 
+      {/* Sub-sections bar — only shown when current tab has sections */}
+      <SubSectionBar
+        tabId={activeTab}
+        sections={currentSections}
+        activeSubSection={activeSubSection}
+        setActiveSubSection={setActiveSubSection}
+        eventsInTab={eventsInTab}
+        onAdd={(label) => addSubSection(activeTab, label)}
+        onRemove={(sectionId) => removeSubSection(activeTab, sectionId)}
+        onDropEvent={(eventId, sectionId) => assignSubSection(eventId, sectionId)}
+        dragId={dragId}
+      />
+
       {/* Content */}
       <div style={{ padding: "32px" }}>
         {visibleEvents.length > 0 && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
             <button
               onClick={() => {
-                if (!window.confirm(`Supprimer les ${visibleEvents.length} pari(s) de cet onglet ?`)) return;
+                const label = activeSubSection !== "all" ? "cette section" : "cet onglet";
+                if (!window.confirm(`Supprimer les ${visibleEvents.length} pari(s) de ${label} ?`)) return;
                 const idsToRemove = new Set(visibleEvents.map(ev => ev.id));
                 setWatched(prev => prev.filter(ev => !idsToRemove.has(ev.id)));
               }}
@@ -784,7 +960,7 @@ export default function PolymarketDashboard() {
               onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; e.currentTarget.style.color = "#ef4444"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.2)"; e.currentTarget.style.color = "rgba(239,68,68,0.6)"; }}
             >
-              🗑 Vider l'onglet
+              🗑 Vider {activeSubSection !== "all" ? "la section" : "l'onglet"}
             </button>
           </div>
         )}
