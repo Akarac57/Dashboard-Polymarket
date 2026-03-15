@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const GAMMA_API = "/api/polymarket";
 
@@ -739,22 +739,23 @@ export default function PolymarketDashboard() {
     localStorage.setItem("polymarket-tabs", JSON.stringify(tabs));
   }, [tabs]);
 
+  const watchedRef = React.useRef(watched);
+  useEffect(() => { watchedRef.current = watched; }, [watched]);
+
   const refreshPrices = useCallback(async () => {
-    if (watched.length === 0) return;
+    const current = watchedRef.current;
+    if (current.length === 0) return;
     setRefreshing(true);
     try {
       const updated = await Promise.all(
-        watched.map(async (ev) => {
+        current.map(async (ev) => {
           try {
             const res = await fetch(`${GAMMA_API}/events/${ev.id}`);
             const data = await res.json();
             if (data) {
               const outcomes = parseEvent(data);
               if (outcomes.length > 0) pushHistory(ev.id, outcomes);
-              // Recalcule _tab depuis la catégorie réelle (corrige les anciennes valeurs "all")
-              const tab = ev._tab && ev._tab !== "all"
-                ? ev._tab
-                : getEventTab(data);
+              const tab = ev._tab && ev._tab !== "all" ? ev._tab : getEventTab(data);
               return { ...data, _tab: tab, _subSection: ev._subSection ?? null };
             }
             return ev;
@@ -765,13 +766,12 @@ export default function PolymarketDashboard() {
       setLastUpdate(new Date());
     } catch (e) { console.error(e); }
     setRefreshing(false);
-  }, [watched]);
+  }, []); // stable — lit watched via ref
 
   useEffect(() => {
-    if (watched.length === 0) return;
     const interval = setInterval(refreshPrices, 30000);
     return () => clearInterval(interval);
-  }, [refreshPrices]);
+  }, [refreshPrices]); // ne se relance plus en boucle
 
   const addEvent = (event) => {
     const tab = activeTab !== "all" ? activeTab : getEventTab(event);
