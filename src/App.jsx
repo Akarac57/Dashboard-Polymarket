@@ -154,8 +154,13 @@ function parseEvent(event) {
   if (markets.length > 1) {
     return markets.map((m, i) => {
       const prices = JSON.parse(m.outcomePrices || '["0.5","0.5"]');
-      const label = m.groupItemTitle || m.question || "?";
-      const color = m.chartColor || fallbackColors[i % fallbackColors.length];
+      const rawLabel = m.groupItemTitle || m.question || "?";
+      const label = /draw/i.test(rawLabel) ? "Draw" : rawLabel;
+      // Couleurs fixes pour partis politiques US
+      let color;
+      if (/democrat/i.test(rawLabel)) color = "#1890ff";
+      else if (/republican/i.test(rawLabel)) color = "#ff4d4f";
+      else color = m.chartColor || fallbackColors[i % fallbackColors.length];
       return { label, pct: formatPct(prices[0]), color };
     }).sort((a, b) => b.pct - a.pct);
   }
