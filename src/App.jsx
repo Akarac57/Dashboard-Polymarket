@@ -676,8 +676,40 @@ export default function PolymarketDashboard() {
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
 
+  // Sauvegarde allégée : uniquement les champs essentiels pour éviter QuotaExceededError
+  const slimEvent = (ev) => ({
+    id: ev.id,
+    slug: ev.slug,
+    title: ev.title,
+    category: ev.category,
+    tags: ev.tags,
+    volume: ev.volume,
+    image: ev.image,
+    markets: (ev.markets || []).map(m => ({
+      id: m.id,
+      active: m.active,
+      closed: m.closed,
+      archived: m.archived,
+      groupItemTitle: m.groupItemTitle,
+      question: m.question,
+      outcomes: m.outcomes,
+      outcomePrices: m.outcomePrices,
+      chartColor: m.chartColor,
+    })),
+    _tab: ev._tab,
+    _subSection: ev._subSection,
+  });
+
   useEffect(() => {
-    localStorage.setItem("polymarket-watched-events", JSON.stringify(watched));
+    try {
+      localStorage.setItem("polymarket-watched-events", JSON.stringify(watched.map(slimEvent)));
+    } catch (e) {
+      console.warn("localStorage plein, nettoyage de l'historique des prix...");
+      try {
+        localStorage.removeItem("polymarket-price-history");
+        localStorage.setItem("polymarket-watched-events", JSON.stringify(watched.map(slimEvent)));
+      } catch { console.error("localStorage toujours plein"); }
+    }
   }, [watched]);
 
   useEffect(() => {
