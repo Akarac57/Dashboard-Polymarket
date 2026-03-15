@@ -309,10 +309,11 @@ function EventCard({ event, onRemove, onDragStart, onDragOver, onDrop, onDragEnd
 }
 
 // ── SearchModal ──────────────────────────────────────────────────
-function SearchModal({ onClose, onAdd, watchedIds, activeTab }) {
+function SearchModal({ onClose, onAddMultiple, watchedIds, activeTab, tabs }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(new Set());
 
   const search = useCallback(async (q) => {
     if (!q.trim()) { setResults([]); return; }
@@ -344,19 +345,37 @@ function SearchModal({ onClose, onAdd, watchedIds, activeTab }) {
     loadTrending();
   }, []);
 
+  const toggleSelect = (event) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(event.id) ? next.delete(event.id) : next.add(event.id);
+      return next;
+    });
+  };
+
+  const handleConfirm = () => {
+    const toAdd = results.filter(e => selected.has(e.id) && !watchedIds.includes(e.id));
+    onAddMultiple(toAdd);
+    onClose();
+  };
+
+  const activeTabLabel = tabs.find(t => t.id === activeTab)?.label;
+
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{ background: "#0d0d1a", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {/* Header */}
         <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div>
-              <span style={{ color: "white", fontWeight: 700, fontSize: 16 }}>Ajouter un event</span>
+              <span style={{ color: "white", fontWeight: 700, fontSize: 16 }}>Ajouter des events</span>
               {activeTab !== "all" && (
                 <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                  → onglet {DEFAULT_TABS.find(t => t.id === activeTab)?.label}
+                  → onglet {activeTabLabel}
                 </span>
               )}
             </div>
@@ -372,14 +391,18 @@ function SearchModal({ onClose, onAdd, watchedIds, activeTab }) {
           {results.length > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
               {query ? `${results.length} résultat(s)` : `${results.length} events populaires`}
+              {selected.size > 0 && <span style={{ marginLeft: 8, color: "#a78bfa", fontWeight: 700 }}> · {selected.size} sélectionné{selected.size > 1 ? "s" : ""}</span>}
             </div>
           )}
         </div>
+
+        {/* Results list */}
         <div style={{ overflowY: "auto", flex: 1, padding: "8px 12px" }}>
           {loading && <div style={{ textAlign: "center", padding: 20, color: "rgba(255,255,255,0.3)" }}>Chargement...</div>}
           {!loading && results.length === 0 && query && <div style={{ textAlign: "center", padding: 20, color: "rgba(255,255,255,0.3)" }}>Aucun résultat pour "{query}"</div>}
           {results.map((event) => {
             const already = watchedIds.includes(event.id);
+            const isSelected = selected.has(event.id);
             const validMarkets = getValidMarkets(event.markets || []);
             const firstMarket = validMarkets[0];
             const firstPct = firstMarket ? formatPct(JSON.parse(firstMarket.outcomePrices || '["0.5","0.5"]')[0]) : null;
@@ -387,28 +410,47 @@ function SearchModal({ onClose, onAdd, watchedIds, activeTab }) {
             return (
               <div
                 key={event.id}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, cursor: already ? "default" : "pointer", opacity: already ? 0.4 : 1, transition: "background 0.15s" }}
-                onMouseEnter={(e) => { if (!already) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                onClick={() => { if (!already) { onAdd(event); onClose(); } }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderRadius: 10, cursor: already ? "default" : "pointer", opacity: already ? 0.4 : 1, transition: "background 0.15s", background: isSelected ? "rgba(99,102,241,0.1)" : "transparent", border: isSelected ? "1px solid rgba(99,102,241,0.25)" : "1px solid transparent", marginBottom: 2 }}
+                onMouseEnter={(e) => { if (!already && !isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                onClick={() => { if (!already) toggleSelect(event); }}
               >
-                <div style={{ minWidth: 44, height: 44, borderRadius: 10, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  {event.image ? <img src={event.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>📊</span>}
+                {/* Checkbox */}
+                <div style={{ width: 18, height: 18, borderRadius: 5, border: already ? "1.5px solid rgba(255,255,255,0.15)" : isSelected ? "1.5px solid #6366f1" : "1.5px solid rgba(255,255,255,0.2)", background: already ? "transparent" : isSelected ? "#6366f1" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                  {already && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>✓</span>}
+                  {isSelected && !already && <span style={{ fontSize: 10, color: "white" }}>✓</span>}
+                </div>
+                <div style={{ minWidth: 40, height: 40, borderRadius: 8, background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+                  {event.image ? <img src={event.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 18 }}>📊</span>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: "rgba(255,255,255,0.88)", fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</div>
-                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{event.category || "General"} · {validMarkets.length} option{validMarkets.length > 1 ? "s" : ""}</div>
+                  <div style={{ color: already ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.88)", fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</div>
+                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2 }}>{event.category || "General"} · {validMarkets.length} option{validMarkets.length > 1 ? "s" : ""}</div>
                 </div>
                 {firstPct !== null && (
-                  <div style={{ textAlign: "right", minWidth: 44 }}>
-                    <div style={{ color: firstColor, fontWeight: 700, fontSize: 15, fontFamily: "monospace" }}>{firstPct}%</div>
+                  <div style={{ textAlign: "right", minWidth: 40, flexShrink: 0 }}>
+                    <div style={{ color: already ? "rgba(255,255,255,0.3)" : firstColor, fontWeight: 700, fontSize: 14, fontFamily: "monospace" }}>{firstPct}%</div>
                   </div>
                 )}
-                {already && <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>✓</div>}
               </div>
             );
           })}
         </div>
+
+        {/* Footer confirm button */}
+        <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+            {selected.size === 0 ? "Cochez des events à ajouter" : `${selected.size} event${selected.size > 1 ? "s" : ""} sélectionné${selected.size > 1 ? "s" : ""}`}
+          </span>
+          <button
+            onClick={handleConfirm}
+            disabled={selected.size === 0}
+            style={{ background: selected.size > 0 ? "linear-gradient(135deg, #6366f1, #a78bfa)" : "rgba(255,255,255,0.07)", border: "none", color: selected.size > 0 ? "white" : "rgba(255,255,255,0.3)", padding: "9px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: selected.size > 0 ? "pointer" : "default", transition: "all 0.2s", boxShadow: selected.size > 0 ? "0 4px 15px rgba(99,102,241,0.35)" : "none" }}
+          >
+            Ajouter {selected.size > 0 ? `${selected.size} pari${selected.size > 1 ? "s" : ""}` : ""}
+          </button>
+        </div>
+
       </div>
     </div>
   );
@@ -524,8 +566,31 @@ export default function PolymarketDashboard() {
     setLastUpdate(new Date());
   };
 
+  const addMultiple = (events) => {
+    const toAdd = events.map(event => {
+      const tab = activeTab !== "all" ? activeTab : getEventTab(event);
+      const withTab = { ...event, _tab: tab };
+      const outcomes = parseEvent(withTab);
+      if (outcomes.length > 0) pushHistory(event.id, outcomes);
+      return withTab;
+    });
+    setWatched(prev => [...toAdd, ...prev]);
+    setLastUpdate(new Date());
+  };
+
   const removeEvent = (id) => {
     setWatched((prev) => prev.filter((ev) => ev.id !== id));
+  };
+
+  const reorderTab = (id, dir) => {
+    setTabs(prev => {
+      const arr = [...prev];
+      const idx = arr.findIndex(t => t.id === id);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= arr.length) return prev;
+      [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+      return arr;
+    });
   };
 
   const reorderEvents = (fromId, toId) => {
@@ -610,6 +675,21 @@ export default function PolymarketDashboard() {
                 return (
                   <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: 0, background: hidden ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.06)", border: `1px solid ${hidden ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, overflow: "hidden", opacity: hidden ? 0.5 : 1, transition: "all 0.2s" }}>
                     <span style={{ padding: "5px 10px", fontSize: 13, color: hidden ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.85)" }}>{tab.emoji} {tab.label}</span>
+                    {/* Arrow reorder */}
+                    <button
+                      onClick={() => reorderTab(tab.id, -1)}
+                      disabled={tabs.indexOf(tab) === 0}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "none", borderLeft: "1px solid rgba(255,255,255,0.07)", color: tabs.indexOf(tab) === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.35)", padding: "5px 7px", cursor: tabs.indexOf(tab) === 0 ? "default" : "pointer", fontSize: 11, transition: "all 0.15s", display: "flex", alignItems: "center" }}
+                      onMouseEnter={(e) => { if (tabs.indexOf(tab) > 0) { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = tabs.indexOf(tab) === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.35)"; }}
+                    >←</button>
+                    <button
+                      onClick={() => reorderTab(tab.id, 1)}
+                      disabled={tabs.indexOf(tab) === tabs.length - 1}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "none", borderLeft: "1px solid rgba(255,255,255,0.07)", color: tabs.indexOf(tab) === tabs.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.35)", padding: "5px 7px", cursor: tabs.indexOf(tab) === tabs.length - 1 ? "default" : "pointer", fontSize: 11, transition: "all 0.15s", display: "flex", alignItems: "center" }}
+                      onMouseEnter={(e) => { if (tabs.indexOf(tab) < tabs.length - 1) { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = tabs.indexOf(tab) === tabs.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.35)"; }}
+                    >→</button>
                     {/* Eye toggle */}
                     <button
                       onClick={() => toggleHideTab(tab.id)}
@@ -750,9 +830,10 @@ export default function PolymarketDashboard() {
       {showSearch && (
         <SearchModal
           onClose={() => setShowSearch(false)}
-          onAdd={addEvent}
+          onAddMultiple={addMultiple}
           watchedIds={watched.map((ev) => ev.id)}
           activeTab={activeTab}
+          tabs={tabs}
         />
       )}
 
