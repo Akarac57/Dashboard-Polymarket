@@ -634,7 +634,13 @@ export default function PolymarketDashboard() {
   const [watched, setWatched] = useState(() => {
     try {
       const saved = localStorage.getItem("polymarket-watched-events");
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      // Migration inline : recalcule _tab au chargement, sans useEffect
+      return parsed.map(ev => ({
+        ...ev,
+        _tab: (ev._tab && ev._tab !== "all") ? ev._tab : getEventTab(ev),
+      }));
     } catch { return []; }
   });
 
@@ -669,16 +675,6 @@ export default function PolymarketDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
-
-  // Migration : recalcule _tab pour les paris dont la catégorie était "all" ou absente
-  useEffect(() => {
-    setWatched(prev => prev.map(ev => {
-      if (!ev._tab || ev._tab === "all") {
-        return { ...ev, _tab: getEventTab(ev) };
-      }
-      return ev;
-    }));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     localStorage.setItem("polymarket-watched-events", JSON.stringify(watched));
