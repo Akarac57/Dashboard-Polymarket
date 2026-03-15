@@ -458,7 +458,7 @@ function SearchModal({ onClose, onAddMultiple, watchedIds, activeTab, tabs }) {
 
 // ── SectionedContent ─────────────────────────────────────────────
 // Affiche toutes les sections visibles en même temps (pas de filtrage par clic)
-function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRemoveSection, onAssign, onClearSection, onAddEvent, tabId, dragId, setDragId, overId, setOverId, reorderEvents, assignSubSection }) {
+function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRemoveSection, onAssign, onClearSection, onAddEvent, tabId, dragId, setDragId, overId, setOverId, reorderEvents, assignSubSection, editMode }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [overSection, setOverSection] = useState(null);
@@ -503,7 +503,7 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
             <button onClick={onAddEvent} style={{ marginTop: 8, background: "linear-gradient(135deg, #6366f1, #a78bfa)", border: "none", color: "white", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>+ Ajouter un event</button>
           </div>
         )}
-        {tabId !== "all" && (
+        {tabId !== "all" && editMode && (
           <div style={{ marginTop: 24 }}>
             {adding ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -545,18 +545,20 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 8, fontWeight: 600 }}>{sectionEvents.length}</span>
                 {isDropTarget && <span style={{ fontSize: 11, color: "rgba(99,102,241,0.8)" }}>← Déposer ici</span>}
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {sectionEvents.length > 0 && (
-                  <button onClick={() => { if (window.confirm(`Supprimer les ${sectionEvents.length} pari(s) de "${section.label}" ?`)) onClearSection(section.id); }} style={{ background: "none", border: "none", color: "rgba(239,68,68,0.4)", fontSize: 11, cursor: "pointer", padding: "2px 6px" }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
-                    onMouseLeave={e => e.currentTarget.style.color = "rgba(239,68,68,0.4)"}
-                  >🗑</button>
-                )}
-                <button onClick={() => onRemoveSection(section.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer" }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#ff4d4f"}
-                  onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
-                >× Supprimer section</button>
-              </div>
+              {editMode && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {sectionEvents.length > 0 && (
+                    <button onClick={() => { if (window.confirm(`Supprimer les ${sectionEvents.length} pari(s) de "${section.label}" ?`)) onClearSection(section.id); }} style={{ background: "none", border: "none", color: "rgba(239,68,68,0.4)", fontSize: 11, cursor: "pointer", padding: "2px 6px" }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = "rgba(239,68,68,0.4)"}
+                    >🗑</button>
+                  )}
+                  <button onClick={() => onRemoveSection(section.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ff4d4f"}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
+                  >× Supprimer section</button>
+                </div>
+              )}
             </div>
 
             {sectionEvents.length > 0
@@ -585,8 +587,8 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
         </div>
       )}
 
-      {/* Ajouter une section */}
-      {tabId !== "all" && (
+      {/* Ajouter une section — seulement en mode édition */}
+      {tabId !== "all" && editMode && (
         <div>
           {adding ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -721,7 +723,7 @@ export default function PolymarketDashboard() {
               const tab = ev._tab && ev._tab !== "all"
                 ? ev._tab
                 : getEventTab(data);
-              return { ...data, _tab: tab };
+              return { ...data, _tab: tab, _subSection: ev._subSection ?? null };
             }
             return ev;
           } catch { return ev; }
@@ -975,6 +977,7 @@ export default function PolymarketDashboard() {
           setOverId={setOverId}
           reorderEvents={reorderEvents}
           assignSubSection={assignSubSection}
+          editMode={showTabManager}
         />
       </div>
 
