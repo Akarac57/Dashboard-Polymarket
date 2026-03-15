@@ -185,9 +185,6 @@ function EventCard({ event, onRemove, onDragStart, onDragOver, onDrop, onDragEnd
   const [activePeriod, setActivePeriod] = useState("24h");
 
   const outcomes = parseEvent(event);
-  const cat = normalizeCat(event);
-  const catColor = getCatColor(cat);
-  const catLabel = CAT_LABELS[cat] || (event.category || "Général");
   const slug = event.slug || event.id;
   const periodMs = PERIODS.find(p => p.id === activePeriod)?.ms || PERIODS[1].ms;
 
@@ -220,10 +217,7 @@ function EventCard({ event, onRemove, onDragStart, onDragOver, onDrop, onDragEnd
       </div>
 
       {/* Badge + actions */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingLeft: 18 }}>
-        <div style={{ display: "inline-block", background: catColor + "22", border: `1px solid ${catColor}55`, color: catColor, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 20 }}>
-          {catLabel}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 8, paddingLeft: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <a
             href={`https://polymarket.com/event/${slug}`}
