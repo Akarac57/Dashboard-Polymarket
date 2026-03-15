@@ -458,7 +458,7 @@ function SearchModal({ onClose, onAddMultiple, watchedIds, activeTab, tabs }) {
 
 // ── SectionedContent ─────────────────────────────────────────────
 // Affiche toutes les sections visibles en même temps (pas de filtrage par clic)
-function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRemoveSection, onAssign, onClearSection, onAddEvent, tabId, dragId, setDragId, overId, setOverId, reorderEvents, assignSubSection, editMode }) {
+function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRemoveSection, onReorderSection, onAssign, onClearSection, onAddEvent, tabId, dragId, setDragId, overId, setOverId, reorderEvents, assignSubSection, editMode }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [overSection, setOverSection] = useState(null);
@@ -546,7 +546,23 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
                 {isDropTarget && <span style={{ fontSize: 11, color: "rgba(99,102,241,0.8)" }}>← Déposer ici</span>}
               </div>
               {editMode && (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  {/* Flèches réordonnement */}
+                  <button
+                    onClick={() => onReorderSection(section.id, -1)}
+                    disabled={sections.indexOf(section) === 0}
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: sections.indexOf(section) === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", width: 22, height: 22, borderRadius: 4, cursor: sections.indexOf(section) === 0 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
+                    onMouseEnter={e => { if (sections.indexOf(section) > 0) { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = sections.indexOf(section) === 0 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)"; }}
+                  >↑</button>
+                  <button
+                    onClick={() => onReorderSection(section.id, 1)}
+                    disabled={sections.indexOf(section) === sections.length - 1}
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: sections.indexOf(section) === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)", width: 22, height: 22, borderRadius: 4, cursor: sections.indexOf(section) === sections.length - 1 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}
+                    onMouseEnter={e => { if (sections.indexOf(section) < sections.length - 1) { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = sections.indexOf(section) === sections.length - 1 ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.4)"; }}
+                  >↓</button>
+                  <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.08)", margin: "0 4px" }} />
                   {sectionEvents.length > 0 && (
                     <button onClick={() => { if (window.confirm(`Supprimer les ${sectionEvents.length} pari(s) de "${section.label}" ?`)) onClearSection(section.id); }} style={{ background: "none", border: "none", color: "rgba(239,68,68,0.4)", fontSize: 11, cursor: "pointer", padding: "2px 6px" }}
                       onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
@@ -556,7 +572,7 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
                   <button onClick={() => onRemoveSection(section.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer" }}
                     onMouseEnter={e => e.currentTarget.style.color = "#ff4d4f"}
                     onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
-                  >× Supprimer section</button>
+                  >× Supprimer</button>
                 </div>
               )}
             </div>
@@ -697,6 +713,17 @@ export default function PolymarketDashboard() {
   const removeSubSection = (tabId, sectionId) => {
     setWatched(prev => prev.map(ev => ev._subSection === sectionId ? { ...ev, _subSection: null } : ev));
     setSubSections(prev => ({ ...prev, [tabId]: (prev[tabId] || []).filter(s => s.id !== sectionId) }));
+  };
+
+  const reorderSubSection = (tabId, sectionId, dir) => {
+    setSubSections(prev => {
+      const arr = [...(prev[tabId] || [])];
+      const idx = arr.findIndex(s => s.id === sectionId);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= arr.length) return prev;
+      [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+      return { ...prev, [tabId]: arr };
+    });
   };
 
   const assignSubSection = (eventId, sectionId) => {
@@ -964,6 +991,7 @@ export default function PolymarketDashboard() {
           onRemove={removeEvent}
           onAddSection={(label) => addSubSection(activeTab, label)}
           onRemoveSection={(sectionId) => removeSubSection(activeTab, sectionId)}
+          onReorderSection={(sectionId, dir) => reorderSubSection(activeTab, sectionId, dir)}
           onAssign={assignSubSection}
           onClearSection={(sectionId) => {
             const ids = new Set(eventsInTab.filter(ev => ev._subSection === sectionId).map(ev => ev.id));
