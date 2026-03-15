@@ -84,11 +84,20 @@ function getCatColor(cat) {
 
 const fallbackColors = ["#1890ff", "#ff4d4f", "#52c41a", "#fa8c16", "#722ed1", "#13c2c2"];
 
-// ── Périodes ─────────────────────────────────────────────────────
+// ── Galerie d'emojis pour les onglets ───────────────────────────
+const EMOJI_GALLERY = [
+  "📊","🏛️","⚽","₿","🔬","💼","🌍","🎯","🔥","⚡",
+  "🏆","🎲","💰","📈","🗳️","🇺🇸","🇫🇷","🇬🇧","🇩🇪","🇪🇸",
+  "🏀","🎾","🏈","⚾","🏒","🎱","🏇","🥊","🏊","🚀",
+  "🤖","💊","🧬","🌱","☀️","🌊","🎬","🎵","📱","🏠",
+  "✈️","🚗","🛢️","💎","🪙","📉","🌐","🎭","🧠","⚖️",
+];
+
+
 const PERIODS = [
   { id: "1h",  label: "1h",  ms: 60 * 60 * 1000 },
   { id: "24h", label: "24h", ms: 24 * 60 * 60 * 1000 },
-  { id: "72h",  label: "72h",  ms: 3 * 24 * 60 * 60 * 1000 },
+  { id: "3d",  label: "72h", ms: 3 * 24 * 60 * 60 * 1000 },
 ];
 
 // ── Historique des prix ──────────────────────────────────────────
@@ -428,6 +437,13 @@ export default function PolymarketDashboard() {
   });
 
   const [activeTab, setActiveTab] = useState("all");
+  const [hiddenTabs, setHiddenTabs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("polymarket-hidden-tabs");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   const [showSearch, setShowSearch] = useState(false);
   const [showTabManager, setShowTabManager] = useState(false);
   const [newTabName, setNewTabName] = useState("");
@@ -450,6 +466,17 @@ export default function PolymarketDashboard() {
   useEffect(() => {
     localStorage.setItem("polymarket-watched-events", JSON.stringify(watched));
   }, [watched]);
+
+  useEffect(() => {
+    localStorage.setItem("polymarket-hidden-tabs", JSON.stringify(hiddenTabs));
+  }, [hiddenTabs]);
+
+  const toggleHideTab = (id) => {
+    setHiddenTabs(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+    if (hiddenTabs.includes(id) === false && activeTab === id) setActiveTab("all");
+  };
 
   useEffect(() => {
     localStorage.setItem("polymarket-tabs", JSON.stringify(tabs));
@@ -578,27 +605,77 @@ export default function PolymarketDashboard() {
 
       {/* Tab Manager */}
       {showTabManager && (
-        <div style={{ background: "rgba(10,10,20,0.98)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "16px 32px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>GÉRER LES ONGLETS :</span>
-            {tabs.filter(t => t.id !== "all").map(tab => (
-              <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 10px" }}>
-                <span style={{ fontSize: 13 }}>{tab.emoji} {tab.label}</span>
-                <button onClick={() => removeTab(tab.id)} style={{ background: "none", border: "none", color: "rgba(255,77,79,0.7)", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+        <div style={{ background: "rgba(10,10,20,0.98)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "20px 32px" }}>
+
+          {/* Existing tabs with eye toggle */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 12 }}>Onglets existants</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {tabs.map(tab => {
+                const hidden = hiddenTabs.includes(tab.id);
+                return (
+                  <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: 0, background: hidden ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.06)", border: `1px solid ${hidden ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, overflow: "hidden", opacity: hidden ? 0.5 : 1, transition: "all 0.2s" }}>
+                    <span style={{ padding: "5px 10px", fontSize: 13, color: hidden ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.85)" }}>{tab.emoji} {tab.label}</span>
+                    {/* Eye toggle */}
+                    <button
+                      onClick={() => toggleHideTab(tab.id)}
+                      title={hidden ? "Afficher cet onglet" : "Masquer cet onglet"}
+                      style={{ background: "rgba(255,255,255,0.04)", border: "none", borderLeft: "1px solid rgba(255,255,255,0.07)", color: hidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.45)", padding: "5px 8px", cursor: "pointer", fontSize: 13, transition: "all 0.15s", display: "flex", alignItems: "center" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = hidden ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.45)"; }}
+                    >{hidden ? "🙈" : "👁"}</button>
+                    {/* Delete (not for "all") */}
+                    {tab.id !== "all" && (
+                      <button onClick={() => removeTab(tab.id)} style={{ background: "rgba(255,255,255,0.04)", border: "none", borderLeft: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,77,79,0.5)", padding: "5px 8px", cursor: "pointer", fontSize: 13, transition: "all 0.15s", display: "flex", alignItems: "center" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,77,79,0.12)"; e.currentTarget.style.color = "#ff4d4f"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,77,79,0.5)"; }}
+                      >×</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Create new tab */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 12 }}>Créer un onglet</div>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div>
+                {/* Emoji gallery */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 320, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                  {EMOJI_GALLERY.map(em => (
+                    <button
+                      key={em}
+                      onClick={() => setNewTabEmoji(em)}
+                      style={{ width: 28, height: 28, borderRadius: 6, border: newTabEmoji === em ? "1.5px solid rgba(99,102,241,0.6)" : "1px solid transparent", background: newTabEmoji === em ? "rgba(99,102,241,0.2)" : "transparent", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.1s" }}
+                    >{em}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", marginBottom: 0 }}>
+                  Emoji sélectionné : <span style={{ fontSize: 16 }}>{newTabEmoji}</span>
+                </div>
               </div>
-            ))}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input value={newTabEmoji} onChange={(e) => setNewTabEmoji(e.target.value)} style={{ width: 40, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "5px 8px", color: "white", fontSize: 14, outline: "none", textAlign: "center" }} placeholder="🏷️" />
-              <input value={newTabName} onChange={(e) => setNewTabName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTab()} placeholder="Nom de l'onglet..." style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "5px 10px", color: "white", fontSize: 13, outline: "none", width: 160 }} />
-              <button onClick={addTab} style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "white", padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>+ Ajouter</button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input
+                  value={newTabName}
+                  onChange={(e) => setNewTabName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTab()}
+                  placeholder="Nom de l'onglet..."
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", color: "white", fontSize: 13, outline: "none", width: 200 }}
+                />
+                <button onClick={addTab} style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "white", padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                  + Créer l'onglet
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs — only visible (non-hidden) tabs */}
       <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "0 32px", display: "flex", gap: 4, overflowX: "auto" }}>
-        {tabs.map((tab) => {
+        {tabs.filter(tab => !hiddenTabs.includes(tab.id)).map((tab) => {
           const count = tabCount(tab.id);
           const isActive = activeTab === tab.id;
           return (
