@@ -456,119 +456,151 @@ function SearchModal({ onClose, onAddMultiple, watchedIds, activeTab, tabs }) {
   );
 }
 
-// ── SubSectionBar ────────────────────────────────────────────────
-function SubSectionBar({ tabId, sections, activeSubSection, setActiveSubSection, eventsInTab, onAdd, onRemove, onDropEvent, dragId }) {
+// ── SectionedContent ─────────────────────────────────────────────
+// Affiche toutes les sections visibles en même temps (pas de filtrage par clic)
+function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRemoveSection, onAssign, onClearSection, onAddEvent, tabId, dragId, setDragId, overId, setOverId, reorderEvents, assignSubSection }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [overSection, setOverSection] = useState(null);
 
-  const countForSection = (sectionId) =>
-    eventsInTab.filter(ev => ev._subSection === sectionId).length;
-
-  const countUnsorted = eventsInTab.filter(ev =>
-    !ev._subSection || !sections.find(s => s.id === ev._subSection)
-  ).length;
-
   const handleAdd = () => {
-    if (newName.trim()) { onAdd(newName.trim()); setNewName(""); }
+    if (newName.trim()) { onAddSection(newName.trim()); setNewName(""); }
     setAdding(false);
   };
 
-  // Don't show bar on "all" tab, but always show "+" to create first section on any tab
-  if (tabId === "all" && sections.length === 0) return null;
+  const unsorted = eventsInTab.filter(ev =>
+    !ev._subSection || !sections.find(s => s.id === ev._subSection)
+  );
 
+  const cardGrid = (events) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+      {events.map(ev => (
+        <EventCard
+          key={ev.id}
+          event={ev}
+          onRemove={onRemove}
+          isDragging={dragId === ev.id}
+          isOver={overId === ev.id && dragId !== ev.id}
+          onDragStart={() => setDragId(ev.id)}
+          onDragOver={() => setOverId(ev.id)}
+          onDrop={() => { reorderEvents(dragId, ev.id); setDragId(null); setOverId(null); }}
+          onDragEnd={() => { setDragId(null); setOverId(null); }}
+        />
+      ))}
+    </div>
+  );
+
+  // Pas de sections : grille classique + bouton créer une section
+  if (sections.length === 0) {
+    return (
+      <div>
+        {eventsInTab.length > 0 && cardGrid(eventsInTab)}
+        {eventsInTab.length === 0 && (
+          <div style={{ textAlign: "center", padding: "80px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <div style={{ fontSize: 48 }}>📊</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>Aucun event dans cet onglet</div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", maxWidth: 360, lineHeight: 1.6 }}>Cliquez sur <strong>+ Ajouter un event</strong> pour en ajouter un.</div>
+            <button onClick={onAddEvent} style={{ marginTop: 8, background: "linear-gradient(135deg, #6366f1, #a78bfa)", border: "none", color: "white", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>+ Ajouter un event</button>
+          </div>
+        )}
+        {tabId !== "all" && (
+          <div style={{ marginTop: 24 }}>
+            {adding ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Nom de la section..." style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "7px 12px", color: "white", fontSize: 13, outline: "none", width: 200 }} />
+                <button onClick={handleAdd} style={{ background: "rgba(99,102,241,0.3)", border: "none", color: "white", padding: "7px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>OK</button>
+                <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 16, cursor: "pointer" }}>×</button>
+              </div>
+            ) : (
+              <button onClick={() => setAdding(true)} style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)", padding: "8px 18px", borderRadius: 8, fontSize: 12, cursor: "pointer", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+              >+ Créer une section</button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Avec sections : affichage en blocs empilés
   return (
-    <div
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "0 32px", display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.01)", overflowX: "auto", minHeight: 38 }}
-    >
-      {/* "Tous" sub-tab */}
-      {sections.length > 0 && (
-        <button
-          onClick={() => setActiveSubSection("all")}
-          style={{ background: "none", border: "none", borderBottom: activeSubSection === "all" ? "2px solid rgba(255,255,255,0.4)" : "2px solid transparent", color: activeSubSection === "all" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)", padding: "8px 12px", cursor: "pointer", fontSize: 11, fontWeight: activeSubSection === "all" ? 700 : 400, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", transition: "all 0.15s" }}
-        >
-          Tous
-          <span style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>
-            {eventsInTab.length}
-          </span>
-        </button>
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
 
-      {/* Section tabs */}
+      {/* Sections nommées */}
       {sections.map(section => {
-        const isActive = activeSubSection === section.id;
+        const sectionEvents = eventsInTab.filter(ev => ev._subSection === section.id);
         const isDropTarget = overSection === section.id && dragId;
-        const count = countForSection(section.id);
         return (
-          <div
-            key={section.id}
-            onDragOver={(e) => { e.preventDefault(); setOverSection(section.id); }}
-            onDragLeave={() => setOverSection(null)}
-            onDrop={() => { if (dragId) { onDropEvent(dragId, section.id); setOverSection(null); } }}
-            style={{ position: "relative" }}
-          >
-            <button
-              onClick={() => setActiveSubSection(section.id)}
-              style={{ background: isDropTarget ? "rgba(99,102,241,0.1)" : "none", border: "none", borderBottom: isActive ? "2px solid rgba(255,255,255,0.4)" : isDropTarget ? "2px solid rgba(99,102,241,0.5)" : "2px solid transparent", color: isActive ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)", padding: "8px 10px", cursor: "pointer", fontSize: 11, fontWeight: isActive ? 700 : 400, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", transition: "all 0.15s", borderRadius: isDropTarget ? "4px 4px 0 0" : 0 }}
+          <div key={section.id}>
+            {/* Section header */}
+            <div
+              onDragOver={e => { e.preventDefault(); setOverSection(section.id); }}
+              onDragLeave={() => setOverSection(null)}
+              onDrop={() => { if (dragId) { assignSubSection(dragId, section.id); setOverSection(null); setDragId(null); } }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, padding: "8px 12px", borderRadius: 8, background: isDropTarget ? "rgba(99,102,241,0.1)" : "transparent", border: isDropTarget ? "1px dashed rgba(99,102,241,0.4)" : "1px solid transparent", transition: "all 0.15s" }}
             >
-              {section.label}
-              {count > 0 && (
-                <span style={{ background: isActive ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)", color: isActive ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>
-                  {count}
-                </span>
-              )}
-              <span
-                onClick={(e) => { e.stopPropagation(); onRemove(section.id); }}
-                style={{ marginLeft: 2, opacity: 0.3, fontSize: 11, cursor: "pointer", lineHeight: 1 }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#ff4d4f"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.3"; e.currentTarget.style.color = ""; }}
-              >×</span>
-            </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.55)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{section.label}</span>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.06)", padding: "1px 7px", borderRadius: 8, fontWeight: 600 }}>{sectionEvents.length}</span>
+                {isDropTarget && <span style={{ fontSize: 11, color: "rgba(99,102,241,0.8)" }}>← Déposer ici</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {sectionEvents.length > 0 && (
+                  <button onClick={() => { if (window.confirm(`Supprimer les ${sectionEvents.length} pari(s) de "${section.label}" ?`)) onClearSection(section.id); }} style={{ background: "none", border: "none", color: "rgba(239,68,68,0.4)", fontSize: 11, cursor: "pointer", padding: "2px 6px" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(239,68,68,0.4)"}
+                  >🗑</button>
+                )}
+                <button onClick={() => onRemoveSection(section.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#ff4d4f"}
+                  onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
+                >× Supprimer section</button>
+              </div>
+            </div>
+
+            {sectionEvents.length > 0
+              ? cardGrid(sectionEvents)
+              : (
+                <div
+                  onDragOver={e => { e.preventDefault(); setOverSection(section.id); }}
+                  onDragLeave={() => setOverSection(null)}
+                  onDrop={() => { if (dragId) { assignSubSection(dragId, section.id); setOverSection(null); setDragId(null); } }}
+                  style={{ border: "1.5px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.18)", fontSize: 12 }}
+                >Glisse un pari ici</div>
+              )
+            }
           </div>
         );
       })}
 
-      {/* "Non classés" section when drag is active or there are unsorted events */}
-      {sections.length > 0 && countUnsorted > 0 && (
-        <button
-          onClick={() => setActiveSubSection("__none__")}
-          style={{ background: "none", border: "none", borderBottom: activeSubSection === "__none__" ? "2px solid rgba(255,255,255,0.4)" : "2px solid transparent", color: activeSubSection === "__none__" ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)", padding: "8px 10px", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", fontStyle: "italic", transition: "all 0.15s" }}
-        >
-          Non classés
-          <span style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.2)", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8 }}>{countUnsorted}</span>
-        </button>
-      )}
-
-      {/* Add section */}
-      {tabId !== "all" && (
-        adding ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 6 }}>
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
-              placeholder="Nom de la section..."
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "3px 8px", color: "white", fontSize: 11, outline: "none", width: 150 }}
-            />
-            <button onClick={handleAdd} style={{ background: "rgba(99,102,241,0.3)", border: "none", color: "white", padding: "3px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>OK</button>
-            <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 14, cursor: "pointer" }}>×</button>
+      {/* Non classés */}
+      {unsorted.length > 0 && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "8px 12px" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: "0.05em", textTransform: "uppercase", fontStyle: "italic" }}>Non classés</span>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.04)", padding: "1px 7px", borderRadius: 8, fontWeight: 600 }}>{unsorted.length}</span>
           </div>
-        ) : (
-          <button
-            onClick={() => setAdding(true)}
-            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.2)", padding: "8px 10px", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 3, transition: "color 0.15s", whiteSpace: "nowrap" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; }}
-          >+ Section</button>
-        )
+          {cardGrid(unsorted)}
+        </div>
       )}
 
-      {/* Drag hint when dragging */}
-      {dragId && sections.length > 0 && (
-        <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(99,102,241,0.6)", paddingRight: 8, whiteSpace: "nowrap" }}>
-          ↑ Dépose sur une section
-        </span>
+      {/* Ajouter une section */}
+      {tabId !== "all" && (
+        <div>
+          {adding ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Nom de la section..." style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "7px 12px", color: "white", fontSize: 13, outline: "none", width: 200 }} />
+              <button onClick={handleAdd} style={{ background: "rgba(99,102,241,0.3)", border: "none", color: "white", padding: "7px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>OK</button>
+              <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 16, cursor: "pointer" }}>×</button>
+            </div>
+          ) : (
+            <button onClick={() => setAdding(true)} style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)", padding: "8px 18px", borderRadius: 8, fontSize: 12, cursor: "pointer", transition: "all 0.2s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+            >+ Ajouter une section</button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -591,7 +623,6 @@ export default function PolymarketDashboard() {
   });
 
   const [activeTab, setActiveTab] = useState("all");
-  const [activeSubSection, setActiveSubSection] = useState("all"); // "all" = toutes les sous-cats
 
   // subSections : { [tabId]: [ { id, label, emoji? } ] }
   const [subSections, setSubSections] = useState(() => {
@@ -645,8 +676,12 @@ export default function PolymarketDashboard() {
     localStorage.setItem("polymarket-subsections", JSON.stringify(subSections));
   }, [subSections]);
 
-  // Reset sous-section active quand on change d'onglet
-  useEffect(() => { setActiveSubSection("all"); }, [activeTab]);
+  const eventsInTab = watched.filter((ev) => {
+    if (activeTab === "all") return true;
+    return (ev._tab || getEventTab(ev)) === activeTab;
+  });
+
+  const currentSections = subSections[activeTab] || [];
 
   const addSubSection = (tabId, label) => {
     if (!label.trim()) return;
@@ -658,10 +693,8 @@ export default function PolymarketDashboard() {
   };
 
   const removeSubSection = (tabId, sectionId) => {
-    // Réassigne les paris de cette sous-section à "none"
     setWatched(prev => prev.map(ev => ev._subSection === sectionId ? { ...ev, _subSection: null } : ev));
     setSubSections(prev => ({ ...prev, [tabId]: (prev[tabId] || []).filter(s => s.id !== sectionId) }));
-    if (activeSubSection === sectionId) setActiveSubSection("all");
   };
 
   const assignSubSection = (eventId, sectionId) => {
@@ -671,19 +704,6 @@ export default function PolymarketDashboard() {
   useEffect(() => {
     localStorage.setItem("polymarket-tabs", JSON.stringify(tabs));
   }, [tabs]);
-
-  const eventsInTab = watched.filter((ev) => {
-    if (activeTab === "all") return true;
-    return (ev._tab || getEventTab(ev)) === activeTab;
-  });
-
-  const currentSections = subSections[activeTab] || [];
-
-  const visibleEvents = eventsInTab.filter((ev) => {
-    if (activeSubSection === "all") return true;
-    if (activeSubSection === "__none__") return !ev._subSection || !currentSections.find(s => s.id === ev._subSection);
-    return ev._subSection === activeSubSection;
-  });
 
   const refreshPrices = useCallback(async () => {
     if (watched.length === 0) return;
@@ -933,68 +953,29 @@ export default function PolymarketDashboard() {
       </div>
 
       {/* Sub-sections bar — only shown when current tab has sections */}
-      <SubSectionBar
-        tabId={activeTab}
-        sections={currentSections}
-        activeSubSection={activeSubSection}
-        setActiveSubSection={setActiveSubSection}
-        eventsInTab={eventsInTab}
-        onAdd={(label) => addSubSection(activeTab, label)}
-        onRemove={(sectionId) => removeSubSection(activeTab, sectionId)}
-        onDropEvent={(eventId, sectionId) => assignSubSection(eventId, sectionId)}
-        dragId={dragId}
-      />
 
       {/* Content */}
       <div style={{ padding: "32px" }}>
-        {visibleEvents.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-            <button
-              onClick={() => {
-                const label = activeSubSection !== "all" ? "cette section" : "cet onglet";
-                if (!window.confirm(`Supprimer les ${visibleEvents.length} pari(s) de ${label} ?`)) return;
-                const idsToRemove = new Set(visibleEvents.map(ev => ev.id));
-                setWatched(prev => prev.filter(ev => !idsToRemove.has(ev.id)));
-              }}
-              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "rgba(239,68,68,0.6)", padding: "6px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; e.currentTarget.style.color = "#ef4444"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.2)"; e.currentTarget.style.color = "rgba(239,68,68,0.6)"; }}
-            >
-              🗑 Vider {activeSubSection !== "all" ? "la section" : "l'onglet"}
-            </button>
-          </div>
-        )}
-        {visibleEvents.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <div style={{ fontSize: 48 }}>{tabs.find(t => t.id === activeTab)?.emoji || "📊"}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-              Aucun event dans {activeTab === "all" ? "le dashboard" : `l'onglet "${tabs.find(t => t.id === activeTab)?.label}"`}
-            </div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", maxWidth: 360, lineHeight: 1.6 }}>
-              Cliquez sur <strong>+ Ajouter un event</strong> pour en ajouter un.
-              {activeTab !== "all" && <> Il sera automatiquement ajouté dans cet onglet.</>}
-            </div>
-            <button onClick={() => setShowSearch(true)} style={{ marginTop: 8, background: "linear-gradient(135deg, #6366f1, #a78bfa)", border: "none", color: "white", padding: "12px 28px", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
-              + Ajouter un event
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-            {visibleEvents.map((ev) => (
-              <EventCard
-                key={ev.id}
-                event={ev}
-                onRemove={removeEvent}
-                isDragging={dragId === ev.id}
-                isOver={overId === ev.id && dragId !== ev.id}
-                onDragStart={() => setDragId(ev.id)}
-                onDragOver={() => setOverId(ev.id)}
-                onDrop={() => { reorderEvents(dragId, ev.id); setDragId(null); setOverId(null); }}
-                onDragEnd={() => { setDragId(null); setOverId(null); }}
-              />
-            ))}
-          </div>
-        )}
+        <SectionedContent
+          sections={currentSections}
+          eventsInTab={eventsInTab}
+          onRemove={removeEvent}
+          onAddSection={(label) => addSubSection(activeTab, label)}
+          onRemoveSection={(sectionId) => removeSubSection(activeTab, sectionId)}
+          onAssign={assignSubSection}
+          onClearSection={(sectionId) => {
+            const ids = new Set(eventsInTab.filter(ev => ev._subSection === sectionId).map(ev => ev.id));
+            setWatched(prev => prev.filter(ev => !ids.has(ev.id)));
+          }}
+          onAddEvent={() => setShowSearch(true)}
+          tabId={activeTab}
+          dragId={dragId}
+          setDragId={setDragId}
+          overId={overId}
+          setOverId={setOverId}
+          reorderEvents={reorderEvents}
+          assignSubSection={assignSubSection}
+        />
       </div>
 
       {watched.length > 0 && (
