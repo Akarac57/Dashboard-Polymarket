@@ -797,7 +797,7 @@ export default function PolymarketDashboard() {
   }, []); // stable — lit watched via ref
 
   useEffect(() => {
-    const interval = setInterval(refreshPrices, 30000);
+    const interval = setInterval(refreshPrices, 15 * 60 * 1000);
     return () => clearInterval(interval);
   }, [refreshPrices]); // ne se relance plus en boucle
 
@@ -1044,7 +1044,7 @@ export default function PolymarketDashboard() {
 
       {watched.length > 0 && (
         <div style={{ position: "fixed", bottom: 20, right: 20, background: "rgba(15,15,25,0.9)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.35)", backdropFilter: "blur(8px)" }}>
-          🔄 Auto-refresh toutes les 30s
+          🔄 Auto-refresh toutes les 15 min
         </div>
       )}
 
