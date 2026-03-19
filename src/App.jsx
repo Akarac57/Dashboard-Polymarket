@@ -690,7 +690,7 @@ export default function PolymarketDashboard() {
       const [w, t, s, h] = await Promise.all([
         dbGet("watched"), dbGet("tabs"), dbGet("subsections"), dbGet("hidden-tabs"),
       ]);
-      if (w) {
+      if (w && w.length > 0) {
         const migrated = w.map(ev => ({
           ...ev,
           _tab: (ev._tab && ev._tab !== "all") ? ev._tab : getEventTab(ev),
@@ -698,8 +698,8 @@ export default function PolymarketDashboard() {
         setWatched(migrated);
         lsSet("polymarket-watched-events", migrated);
       }
-      if (t) { setTabs(t); lsSet("polymarket-tabs", t); }
-      if (s) { setSubSections(s); lsSet("polymarket-subsections", s); }
+      if (t && t.length > 0) { setTabs(t); lsSet("polymarket-tabs", t); }
+      if (s && Object.keys(s).length > 0) { setSubSections(s); lsSet("polymarket-subsections", s); }
       if (h) { setHiddenTabs(h); lsSet("polymarket-hidden-tabs", h); }
       setSynced(true);
     };
