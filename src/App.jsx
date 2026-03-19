@@ -2,6 +2,46 @@ import React, { useState, useEffect, useCallback } from "react";
 
 const GAMMA_API = "/api/polymarket";
 
+// ── Supabase ─────────────────────────────────────────────────────
+const SUPABASE_URL = "https://wumsxpqwermshwtaeajk.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1bXN4cHF3ZXJtc2h3dGFlYWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTUxOTksImV4cCI6MjA4OTUzMTE5OX0.ZP5hp2Pcu9qZ5HgnG2LYjC7cVi8bhmWLFcUJ-MPq6sE";
+
+async function dbGet(key) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_data?key=eq.${key}&select=value`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    const rows = await res.json();
+    return rows?.[0]?.value ?? null;
+  } catch { return null; }
+}
+
+async function dbSet(key, value) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/dashboard_data`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({ key, value }),
+    });
+  } catch (e) { console.error("Supabase write error:", e); }
+}
+
+// Cache localStorage en lecture rapide, Supabase pour la persistance réelle
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+const GAMMA_API = "/api/polymarket";
+
 // ── Onglets thématiques ──────────────────────────────────────────
 const DEFAULT_TABS = [
   { id: "all", label: "Tous", emoji: "📊" },
@@ -631,42 +671,79 @@ function SectionedContent({ sections, eventsInTab, onRemove, onAddSection, onRem
 
 // ── App principal ────────────────────────────────────────────────
 export default function PolymarketDashboard() {
+  const [synced, setSynced] = useState(false); // true une fois chargé depuis Supabase
+
   const [watched, setWatched] = useState(() => {
-    try {
-      const saved = localStorage.getItem("polymarket-watched-events");
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      // Migration inline : recalcule _tab au chargement, sans useEffect
-      return parsed.map(ev => ({
-        ...ev,
-        _tab: (ev._tab && ev._tab !== "all") ? ev._tab : getEventTab(ev),
-      }));
-    } catch { return []; }
+    const saved = lsGet("polymarket-watched-events", []);
+    return saved.map(ev => ({
+      ...ev,
+      _tab: (ev._tab && ev._tab !== "all") ? ev._tab : getEventTab(ev),
+    }));
   });
 
-  const [tabs, setTabs] = useState(() => {
-    try {
-      const saved = localStorage.getItem("polymarket-tabs");
-      return saved ? JSON.parse(saved) : DEFAULT_TABS;
-    } catch { return DEFAULT_TABS; }
-  });
-
+  const [tabs, setTabs] = useState(() => lsGet("polymarket-tabs", DEFAULT_TABS));
   const [activeTab, setActiveTab] = useState("all");
+  const [subSections, setSubSections] = useState(() => lsGet("polymarket-subsections", {}));
+  const [hiddenTabs, setHiddenTabs] = useState(() => lsGet("polymarket-hidden-tabs", []));
 
-  // subSections : { [tabId]: [ { id, label, emoji? } ] }
-  const [subSections, setSubSections] = useState(() => {
-    try {
-      const saved = localStorage.getItem("polymarket-subsections");
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
-  const [hiddenTabs, setHiddenTabs] = useState(() => {
-    try {
-      const saved = localStorage.getItem("polymarket-hidden-tabs");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
+  // ── Chargement initial depuis Supabase ───────────────────────
+  useEffect(() => {
+    const load = async () => {
+      const [w, t, s, h] = await Promise.all([
+        dbGet("watched"), dbGet("tabs"), dbGet("subsections"), dbGet("hidden-tabs"),
+      ]);
+      if (w) {
+        const migrated = w.map(ev => ({
+          ...ev,
+          _tab: (ev._tab && ev._tab !== "all") ? ev._tab : getEventTab(ev),
+        }));
+        setWatched(migrated);
+        lsSet("polymarket-watched-events", migrated);
+      }
+      if (t) { setTabs(t); lsSet("polymarket-tabs", t); }
+      if (s) { setSubSections(s); lsSet("polymarket-subsections", s); }
+      if (h) { setHiddenTabs(h); lsSet("polymarket-hidden-tabs", h); }
+      setSynced(true);
+    };
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sauvegarde vers Supabase + localStorage (cache) ─────────
+  const slimEvent = (ev) => ({
+    id: ev.id, slug: ev.slug, title: ev.title, category: ev.category,
+    tags: ev.tags, volume: ev.volume, image: ev.image,
+    markets: (ev.markets || []).map(m => ({
+      id: m.id, active: m.active, closed: m.closed, archived: m.archived,
+      groupItemTitle: m.groupItemTitle, question: m.question,
+      outcomes: m.outcomes, outcomePrices: m.outcomePrices, chartColor: m.chartColor,
+    })),
+    _tab: ev._tab, _subSection: ev._subSection,
   });
 
+  useEffect(() => {
+    if (!synced) return;
+    const slim = watched.map(slimEvent);
+    lsSet("polymarket-watched-events", slim);
+    dbSet("watched", slim);
+  }, [watched, synced]);
+
+  useEffect(() => {
+    if (!synced) return;
+    lsSet("polymarket-tabs", tabs);
+    dbSet("tabs", tabs);
+  }, [tabs, synced]);
+
+  useEffect(() => {
+    if (!synced) return;
+    lsSet("polymarket-subsections", subSections);
+    dbSet("subsections", subSections);
+  }, [subSections, synced]);
+
+  useEffect(() => {
+    if (!synced) return;
+    lsSet("polymarket-hidden-tabs", hiddenTabs);
+    dbSet("hidden-tabs", hiddenTabs);
+  }, [hiddenTabs, synced]);
   const [showSearch, setShowSearch] = useState(false);
   const [showTabManager, setShowTabManager] = useState(false);
   const [newTabName, setNewTabName] = useState("");
@@ -676,56 +753,12 @@ export default function PolymarketDashboard() {
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
 
-  // Sauvegarde allégée : uniquement les champs essentiels pour éviter QuotaExceededError
-  const slimEvent = (ev) => ({
-    id: ev.id,
-    slug: ev.slug,
-    title: ev.title,
-    category: ev.category,
-    tags: ev.tags,
-    volume: ev.volume,
-    image: ev.image,
-    markets: (ev.markets || []).map(m => ({
-      id: m.id,
-      active: m.active,
-      closed: m.closed,
-      archived: m.archived,
-      groupItemTitle: m.groupItemTitle,
-      question: m.question,
-      outcomes: m.outcomes,
-      outcomePrices: m.outcomePrices,
-      chartColor: m.chartColor,
-    })),
-    _tab: ev._tab,
-    _subSection: ev._subSection,
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("polymarket-watched-events", JSON.stringify(watched.map(slimEvent)));
-    } catch (e) {
-      console.warn("localStorage plein, nettoyage de l'historique des prix...");
-      try {
-        localStorage.removeItem("polymarket-price-history");
-        localStorage.setItem("polymarket-watched-events", JSON.stringify(watched.map(slimEvent)));
-      } catch { console.error("localStorage toujours plein"); }
-    }
-  }, [watched]);
-
-  useEffect(() => {
-    localStorage.setItem("polymarket-hidden-tabs", JSON.stringify(hiddenTabs));
-  }, [hiddenTabs]);
-
   const toggleHideTab = (id) => {
     setHiddenTabs(prev =>
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
     if (hiddenTabs.includes(id) === false && activeTab === id) setActiveTab("all");
   };
-
-  useEffect(() => {
-    localStorage.setItem("polymarket-subsections", JSON.stringify(subSections));
-  }, [subSections]);
 
   const eventsInTab = watched.filter((ev) => {
     if (activeTab === "all") return true;
@@ -762,10 +795,6 @@ export default function PolymarketDashboard() {
   const assignSubSection = (eventId, sectionId) => {
     setWatched(prev => prev.map(ev => ev.id === eventId ? { ...ev, _subSection: sectionId } : ev));
   };
-
-  useEffect(() => {
-    localStorage.setItem("polymarket-tabs", JSON.stringify(tabs));
-  }, [tabs]);
 
   const watchedRef = React.useRef(watched);
   useEffect(() => { watchedRef.current = watched; }, [watched]);
@@ -872,6 +901,13 @@ export default function PolymarketDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#07070f", fontFamily: "'Inter', 'Helvetica Neue', sans-serif", color: "white", backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12) 0%, transparent 100%)" }}>
+
+      {!synced && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(7,7,15,0.95)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+          <div style={{ width: 40, height: 40, border: "3px solid rgba(99,102,241,0.3)", borderTopColor: "#6366f1", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>Chargement depuis Supabase...</div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(7,7,15,0.92)", backdropFilter: "blur(12px)", zIndex: 10 }}>
