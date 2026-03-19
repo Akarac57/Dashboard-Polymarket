@@ -40,8 +40,6 @@ function lsSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-const GAMMA_API = "/api/polymarket";
-
 // ── Onglets thématiques ──────────────────────────────────────────
 const DEFAULT_TABS = [
   { id: "all", label: "Tous", emoji: "📊" },
