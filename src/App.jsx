@@ -684,6 +684,8 @@ export default function PolymarketDashboard() {
   const [subSections, setSubSections] = useState(() => lsGet("polymarket-subsections", {}));
   const [hiddenTabs, setHiddenTabs] = useState(() => lsGet("polymarket-hidden-tabs", []));
 
+  const hasSynced = React.useRef(false);
+
   // ── Chargement initial depuis Supabase ───────────────────────
   useEffect(() => {
     const load = async () => {
@@ -701,12 +703,16 @@ export default function PolymarketDashboard() {
       if (t && t.length > 0) { setTabs(t); lsSet("polymarket-tabs", t); }
       if (s && Object.keys(s).length > 0) { setSubSections(s); lsSet("polymarket-subsections", s); }
       if (h) { setHiddenTabs(h); lsSet("polymarket-hidden-tabs", h); }
+      // On marque synced APRÈS avoir tout appliqué
+      hasSynced.current = true;
       setSynced(true);
     };
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sauvegarde vers Supabase + localStorage (cache) ─────────
+  // hasSynced.current garantit qu'on ne sauvegarde pas les valeurs
+  // initiales avant que Supabase ait répondu
   const slimEvent = (ev) => ({
     id: ev.id, slug: ev.slug, title: ev.title, category: ev.category,
     tags: ev.tags, volume: ev.volume, image: ev.image,
@@ -719,29 +725,29 @@ export default function PolymarketDashboard() {
   });
 
   useEffect(() => {
-    if (!synced) return;
+    if (!hasSynced.current) return;
     const slim = watched.map(slimEvent);
     lsSet("polymarket-watched-events", slim);
     dbSet("watched", slim);
-  }, [watched, synced]);
+  }, [watched]);
 
   useEffect(() => {
-    if (!synced) return;
+    if (!hasSynced.current) return;
     lsSet("polymarket-tabs", tabs);
     dbSet("tabs", tabs);
-  }, [tabs, synced]);
+  }, [tabs]);
 
   useEffect(() => {
-    if (!synced) return;
+    if (!hasSynced.current) return;
     lsSet("polymarket-subsections", subSections);
     dbSet("subsections", subSections);
-  }, [subSections, synced]);
+  }, [subSections]);
 
   useEffect(() => {
-    if (!synced) return;
+    if (!hasSynced.current) return;
     lsSet("polymarket-hidden-tabs", hiddenTabs);
     dbSet("hidden-tabs", hiddenTabs);
-  }, [hiddenTabs, synced]);
+  }, [hiddenTabs]);
   const [showSearch, setShowSearch] = useState(false);
   const [showTabManager, setShowTabManager] = useState(false);
   const [newTabName, setNewTabName] = useState("");
